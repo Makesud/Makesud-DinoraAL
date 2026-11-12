@@ -1,4 +1,4 @@
-# Dinora AI Controller 0.2 — suzuvchi panel + avto-tap.
+# Dinora AI Controller 0.3 — ko‘p nuqta + xavfsizlik (STOP, ovoz tugmasi, avto-to‘xtash).
 # Bu bitta fayl butun loyihani o'zi yaratadi va debug APK quradi.
 # Joylashuvi repoda: .github/workflows/build.yml
 
@@ -65,8 +65,8 @@ jobs:
                   applicationId = "com.dinora.controller"
                   minSdk = 26
                   targetSdk = 35
-                  versionCode = 2
-                  versionName = "0.2"
+                  versionCode = 3
+                  versionName = "0.3"
               }
 
               signingConfigs {
@@ -124,7 +124,9 @@ jobs:
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
               android:accessibilityEventTypes="typeWindowStateChanged"
               android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagRequestFilterKeyEvents"
               android:canPerformGestures="true"
+              android:canRequestFilterKeyEvents="true"
               android:description="@string/service_description"
               android:notificationTimeout="100" />
           EOF
@@ -155,7 +157,7 @@ jobs:
                   box.setPadding(30, 40, 30, 30)
 
                   val label = TextView(this)
-                  label.text = "Dinora AI Controller — prototip 0.2\nSuzuvchi panel va avto-tap. AI ko‘rish hali qo‘shilmagan."
+                  label.text = "Dinora AI Controller — prototip 0.3\nSuzuvchi panel va avto-tap. AI ko‘rish hali qo‘shilmagan."
                   label.textSize = 18f
 
                   val settings = Button(this)
@@ -211,6 +213,7 @@ jobs:
           import android.os.Handler
           import android.os.Looper
           import android.view.Gravity
+          import android.view.KeyEvent
           import android.view.MotionEvent
           import android.view.View
           import android.view.WindowManager
@@ -223,27 +226,53 @@ jobs:
               companion object {
                   @Volatile
                   var instance: DroneAccessibilityService? = null
+
+                  // Xavfsizlik: ikki tap orasidagi eng kichik masofa (barcha nuqtalar uchun umumiy)
+                  const val MIN_INTERVAL = 200L
+                  const val MAX_INTERVAL = 3000L
+                  const val MAX_MARKERS = 100
               }
+
+              private class Mk(val view: TextView, val params: WindowManager.LayoutParams)
 
               private val handler = Handler(Looper.getMainLooper())
               private var wm: WindowManager? = null
               private var panel: LinearLayout? = null
-              private var marker: View? = null
-              private var markerParams: WindowManager.LayoutParams? = null
+              private val markers = ArrayList<Mk>()
+              private var targets: List<Pair<Float, Float>> = emptyList()
+              private var nextIndex = 0
               private var statusView: TextView? = null
               private var startButton: TextView? = null
               private var intervalView: TextView? = null
+              private var timeView: TextView? = null
+
+              // Avto-to'xtash vaqti (soniya)
+              private val timeOptions = intArrayOf(15, 30, 60, 120, 300)
+              private var timeIdx = 1
 
               private var running = false
               private var intervalMs = 300L
-              private var targetX = 0f
-              private var targetY = 0f
 
+              // Bitta umumiy navbat: nuqtalar birin-ketin, har tap orasida intervalMs
               private val tapLoop = object : Runnable {
                   override fun run() {
                       if (!running) return
-                      tap(targetX, targetY, 40L)
+                      if (targets.isNotEmpty()) {
+                          val t = targets[nextIndex % targets.size]
+                          nextIndex++
+                          // Panel ustiga hech qachon tap tushmasin
+                          if (!overPanel(t.first, t.second)) {
+                              tap(t.first, t.second, 40L)
+                          }
+                      }
                       handler.postDelayed(this, intervalMs)
+                  }
+              }
+
+              private val autoStop = Runnable {
+                  if (running) {
+                      stopRunning()
+                      setStatus("Vaqt tugadi, o‘zi to‘xtadi.")
                   }
               }
 
@@ -261,7 +290,22 @@ jobs:
 
               override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
 
-              override fun onInterrupt() {}
+              override fun onInterrupt() {
+                  stopRunning()
+              }
+
+              // Ovoz tugmasi (+ yoki −) ishlayotgan vaqtda hamma narsani to'xtatadi
+              override fun onKeyEvent(event: KeyEvent): Boolean {
+                  val code = event.keyCode
+                  if (running && (code == KeyEvent.KEYCODE_VOLUME_UP || code == KeyEvent.KEYCODE_VOLUME_DOWN)) {
+                      if (event.action == KeyEvent.ACTION_DOWN) {
+                          stopRunning()
+                          setStatus("Ovoz tugmasi bilan to‘xtatildi.")
+                      }
+                      return true
+                  }
+                  return super.onKeyEvent(event)
+              }
 
               fun tap(x: Float, y: Float, duration: Long = 80L) {
                   val path = Path().apply { moveTo(x, y) }
@@ -358,8 +402,21 @@ jobs:
               }
 
               private fun changeInterval(delta: Long) {
-                  intervalMs = (intervalMs + delta).coerceIn(50L, 3000L)
+                  intervalMs = (intervalMs + delta).coerceIn(MIN_INTERVAL, MAX_INTERVAL)
                   intervalView?.text = "$intervalMs ms"
+              }
+
+              private fun cycleTime() {
+                  if (running) return
+                  timeIdx = (timeIdx + 1) % timeOptions.size
+                  timeView?.text = "⏱ " + timeOptions[timeIdx] + " s"
+              }
+
+              private fun overPanel(x: Float, y: Float): Boolean {
+                  val pn = panel ?: return false
+                  val loc = IntArray(2)
+                  pn.getLocationOnScreen(loc)
+                  return x >= loc[0] && x <= loc[0] + pn.width && y >= loc[1] && y <= loc[1] + pn.height
               }
 
               fun showPanel() {
@@ -396,21 +453,27 @@ jobs:
                   status.textSize = 12f
                   status.maxWidth = dp(240)
                   status.setPadding(dp(8), dp(2), dp(8), dp(6))
-                  status.text = "Tayyor. Avval Nuqta tugmasini bosing."
+                  status.text = "Tayyor. + Nuqta bilan belgi qo‘shing."
                   statusView = status
 
                   val row1 = LinearLayout(this)
                   row1.orientation = LinearLayout.HORIZONTAL
-                  val markBtn = makeButton("Nuqta") { toggleMarker() }
-                  val startBtn = makeButton("▶ Start") {
-                      if (running) stopRunning() else startRunning()
-                  }
-                  startButton = startBtn
-                  row1.addView(markBtn, cellParams())
-                  row1.addView(startBtn, cellParams())
+                  val addBtn = makeButton("+ Nuqta") { addMarker() }
+                  val delBtn = makeButton("− Nuqta") { removeLastMarker() }
+                  row1.addView(addBtn, cellParams())
+                  row1.addView(delBtn, cellParams())
 
                   val row2 = LinearLayout(this)
                   row2.orientation = LinearLayout.HORIZONTAL
+                  val startBtn = makeButton("▶ Start") {
+                      if (running) stopRunning() else startRunning()
+                  }
+                  startBtn.textSize = 18f
+                  startButton = startBtn
+                  row2.addView(startBtn, cellParams())
+
+                  val row3 = LinearLayout(this)
+                  row3.orientation = LinearLayout.HORIZONTAL
                   val minus = makeButton("−") { changeInterval(-50L) }
                   val label = TextView(this)
                   label.setTextColor(Color.WHITE)
@@ -419,14 +482,24 @@ jobs:
                   label.text = "$intervalMs ms"
                   intervalView = label
                   val plus = makeButton("+") { changeInterval(50L) }
-                  row2.addView(minus, cellParams())
-                  row2.addView(label, cellParams())
-                  row2.addView(plus, cellParams())
+                  row3.addView(minus, cellParams())
+                  row3.addView(label, cellParams())
+                  row3.addView(plus, cellParams())
+
+                  val row4 = LinearLayout(this)
+                  row4.orientation = LinearLayout.HORIZONTAL
+                  val timeBtn = makeButton("⏱ " + timeOptions[timeIdx] + " s") { cycleTime() }
+                  timeView = timeBtn
+                  val clearBtn = makeButton("✕ Hammasi") { clearMarkers() }
+                  row4.addView(timeBtn, cellParams())
+                  row4.addView(clearBtn, cellParams())
 
                   box.addView(header)
                   box.addView(status)
                   box.addView(row1)
                   box.addView(row2)
+                  box.addView(row3)
+                  box.addView(row4)
 
                   w.addView(box, p)
                   panel = box
@@ -435,12 +508,12 @@ jobs:
               fun hidePanel() {
                   stopRunning()
                   val w = wm
-                  val m = marker
-                  if (w != null && m != null) {
-                      w.removeView(m)
+                  if (w != null) {
+                      for (m in markers) {
+                          w.removeView(m.view)
+                      }
                   }
-                  marker = null
-                  markerParams = null
+                  markers.clear()
                   val pn = panel
                   if (w != null && pn != null) {
                       w.removeView(pn)
@@ -448,68 +521,149 @@ jobs:
                   panel = null
               }
 
-              private fun toggleMarker() {
+              // ---------- Nuqtalar (belgilar) ----------
+
+              private fun renumber() {
+                  for (i in 0 until markers.size) {
+                      markers[i].view.text = (i + 1).toString()
+                  }
+              }
+
+              private fun addMarker() {
                   if (running) return
                   val w = wm ?: return
-                  val existing = marker
-                  if (existing != null) {
-                      w.removeView(existing)
-                      marker = null
-                      markerParams = null
-                      setStatus("Belgi yashirildi.")
+                  if (markers.size >= MAX_MARKERS) {
+                      setStatus("Eng ko‘pi $MAX_MARKERS ta nuqta.")
                       return
                   }
-                  val size = dp(64)
-                  val v = View(this)
+                  val size = dp(44)
+                  val v = TextView(this)
+                  v.gravity = Gravity.CENTER
+                  v.setTextColor(Color.WHITE)
+                  v.textSize = 12f
                   val ring = GradientDrawable()
                   ring.shape = GradientDrawable.OVAL
-                  ring.setColor(Color.argb(40, 255, 0, 0))
-                  ring.setStroke(dp(3), Color.RED)
+                  ring.setColor(Color.argb(70, 255, 0, 0))
+                  ring.setStroke(dp(2), Color.RED)
                   v.background = ring
+
                   val p = overlayParams(size, size, true)
                   val dm = resources.displayMetrics
-                  p.x = dm.widthPixels / 2 - size / 2
-                  p.y = dm.heightPixels / 2 - size / 2
-                  attachDrag(v, v, p)
+                  val n = markers.size
+                  p.x = dm.widthPixels / 2 - size / 2 + ((n % 7) - 3) * dp(16)
+                  p.y = dm.heightPixels / 2 - size / 2 + (((n / 7) % 7) - 3) * dp(16)
+
+                  val mk = Mk(v, p)
+                  attachMarkerTouch(mk)
                   w.addView(v, p)
-                  marker = v
-                  markerParams = p
-                  setStatus("Qizil belgini otish tugmasi ustiga olib boring, keyin Start bosing.")
+                  markers.add(mk)
+                  renumber()
+                  setStatus("" + markers.size + " ta nuqta. Sudrab joylang. O‘chirish: belgini uzoq bosing.")
               }
 
-              private fun setMarkerTouchable(touchable: Boolean) {
-                  val m = marker ?: return
-                  val p = markerParams ?: return
-                  p.flags = if (touchable) {
-                      p.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
-                  } else {
-                      p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+              private fun attachMarkerTouch(mk: Mk) {
+                  var startX = 0f
+                  var startY = 0f
+                  var origX = 0
+                  var origY = 0
+                  var moved = false
+                  mk.view.setOnTouchListener { _, e ->
+                      when (e.action) {
+                          MotionEvent.ACTION_DOWN -> {
+                              startX = e.rawX
+                              startY = e.rawY
+                              origX = mk.params.x
+                              origY = mk.params.y
+                              moved = false
+                              true
+                          }
+                          MotionEvent.ACTION_MOVE -> {
+                              val dx = e.rawX - startX
+                              val dy = e.rawY - startY
+                              if (Math.abs(dx) > dp(8) || Math.abs(dy) > dp(8)) {
+                                  moved = true
+                              }
+                              mk.params.x = origX + dx.toInt()
+                              mk.params.y = origY + dy.toInt()
+                              wm?.updateViewLayout(mk.view, mk.params)
+                              true
+                          }
+                          MotionEvent.ACTION_UP -> {
+                              if (!moved && e.eventTime - e.downTime > 600L) {
+                                  handler.post { removeMarker(mk) }
+                              }
+                              true
+                          }
+                          else -> true
+                      }
                   }
-                  wm?.updateViewLayout(m, p)
               }
+
+              private fun removeMarker(mk: Mk) {
+                  if (running) return
+                  val w = wm ?: return
+                  if (!markers.remove(mk)) return
+                  w.removeView(mk.view)
+                  renumber()
+                  setStatus("" + markers.size + " ta nuqta qoldi.")
+              }
+
+              private fun removeLastMarker() {
+                  if (running || markers.isEmpty()) return
+                  removeMarker(markers[markers.size - 1])
+              }
+
+              private fun clearMarkers() {
+                  if (running) return
+                  val w = wm ?: return
+                  for (m in markers) {
+                      w.removeView(m.view)
+                  }
+                  markers.clear()
+                  setStatus("Hamma nuqtalar o‘chirildi.")
+              }
+
+              private fun setMarkersTouchable(touchable: Boolean) {
+                  val w = wm ?: return
+                  for (m in markers) {
+                      m.params.flags = if (touchable) {
+                          m.params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+                      } else {
+                          m.params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                      }
+                      w.updateViewLayout(m.view, m.params)
+                  }
+              }
+
+              // ---------- Start / Stop ----------
 
               private fun startRunning() {
-                  val m = marker
-                  if (m == null) {
-                      setStatus("Avval Nuqta tugmasini bosib, belgini otish tugmasi ustiga qo‘ying.")
+                  if (markers.isEmpty()) {
+                      setStatus("Avval + Nuqta bosib, belgini o‘yin tugmasi ustiga qo‘ying.")
                       return
                   }
-                  val loc = IntArray(2)
-                  m.getLocationOnScreen(loc)
-                  targetX = loc[0] + m.width / 2f
-                  targetY = loc[1] + m.height / 2f
-                  setMarkerTouchable(false)
+                  val list = ArrayList<Pair<Float, Float>>()
+                  for (m in markers) {
+                      val loc = IntArray(2)
+                      m.view.getLocationOnScreen(loc)
+                      list.add(Pair(loc[0] + m.view.width / 2f, loc[1] + m.view.height / 2f))
+                  }
+                  targets = list
+                  nextIndex = 0
+                  setMarkersTouchable(false)
                   running = true
-                  startButton?.text = "■ Stop"
-                  setStatus("Ishlayapti: " + targetX.toInt() + ", " + targetY.toInt())
+                  startButton?.text = "■ STOP"
+                  setStatus("Ishlayapti: " + list.size + " nuqta, " + intervalMs + " ms. Ovoz tugmasi ham to‘xtatadi.")
                   handler.post(tapLoop)
+                  handler.postDelayed(autoStop, timeOptions[timeIdx] * 1000L)
               }
 
               private fun stopRunning() {
                   running = false
                   handler.removeCallbacks(tapLoop)
+                  handler.removeCallbacks(autoStop)
                   startButton?.text = "▶ Start"
-                  setMarkerTouchable(true)
+                  setMarkersTouchable(true)
                   setStatus("To‘xtadi.")
               }
           }
