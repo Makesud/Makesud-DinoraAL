@@ -1,1 +1,537 @@
-#
+# Dinora AI Controller 0.2 — suzuvchi panel + avto-tap.
+# Bu bitta fayl butun loyihani o'zi yaratadi va debug APK quradi.
+# Joylashuvi repoda: .github/workflows/build.yml
+
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Loyiha fayllarini yaratish
+        run: |
+          mkdir -p proj/app/src/main/java/com/dinora/controller
+          mkdir -p proj/app/src/main/res/xml
+          mkdir -p proj/app/src/main/res/values
+          cd proj
+
+          echo "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" | base64 -d > debug.keystore
+
+          cat > settings.gradle.kts <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "DinoraAIController"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application") version "8.7.3" apply false
+              id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+          }
+          EOF
+
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          EOF
+
+          cat > app/build.gradle.kts <<'EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "com.dinora.controller"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.dinora.controller"
+                  minSdk = 26
+                  targetSdk = 35
+                  versionCode = 2
+                  versionName = "0.2"
+              }
+
+              signingConfigs {
+                  getByName("debug") {
+                      storeFile = file("../debug.keystore")
+                      storePassword = "android"
+                      keyAlias = "androiddebugkey"
+                      keyPassword = "android"
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:label="Dinora AI Controller"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".DroneAccessibilityService"
+                      android:label="Dinora AI Controller"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService" />
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_config" />
+                  </service>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/xml/accessibility_config.xml <<'EOF'
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeWindowStateChanged"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:canPerformGestures="true"
+              android:description="@string/service_description"
+              android:notificationTimeout="100" />
+          EOF
+
+          cat > app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="service_description">O‘yin ustida suzuvchi panel ko‘rsatadi va ekranga tap yuboradi.</string>
+          </resources>
+          EOF
+
+          cat > app/src/main/java/com/dinora/controller/MainActivity.kt <<'EOF'
+          package com.dinora.controller
+
+          import android.app.Activity
+          import android.content.Intent
+          import android.os.Bundle
+          import android.provider.Settings
+          import android.widget.Button
+          import android.widget.LinearLayout
+          import android.widget.TextView
+
+          class MainActivity : Activity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  val box = LinearLayout(this)
+                  box.orientation = LinearLayout.VERTICAL
+                  box.setPadding(30, 40, 30, 30)
+
+                  val label = TextView(this)
+                  label.text = "Dinora AI Controller — prototip 0.2\nSuzuvchi panel va avto-tap. AI ko‘rish hali qo‘shilmagan."
+                  label.textSize = 18f
+
+                  val settings = Button(this)
+                  settings.text = "Accessibility ruxsatini ochish"
+                  settings.setOnClickListener {
+                      startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                  }
+
+                  val panelBtn = Button(this)
+                  panelBtn.text = "Suzuvchi panelni ko‘rsatish"
+                  panelBtn.setOnClickListener {
+                      val service = DroneAccessibilityService.instance
+                      if (service == null) {
+                          label.text = "Accessibility xizmati yoqilmagan. Avval ruxsatni yoqing."
+                      } else {
+                          service.showPanel()
+                          label.text = "Panel ekranda. Endi o‘yinni oching."
+                      }
+                  }
+
+                  val test = Button(this)
+                  test.text = "Sinov tap"
+                  test.setOnClickListener {
+                      val service = DroneAccessibilityService.instance
+                      if (service == null) {
+                          label.text = "Accessibility xizmati yoqilmagan. Avval ruxsatni yoqing."
+                      } else {
+                          service.tap(500f, 900f)
+                          label.text = "Sinov tap yuborildi."
+                      }
+                  }
+
+                  box.addView(label)
+                  box.addView(settings)
+                  box.addView(panelBtn)
+                  box.addView(test)
+                  setContentView(box)
+              }
+          }
+          EOF
+
+          cat > app/src/main/java/com/dinora/controller/DroneAccessibilityService.kt <<'EOF'
+          package com.dinora.controller
+
+          import android.accessibilityservice.AccessibilityService
+          import android.accessibilityservice.GestureDescription
+          import android.content.Context
+          import android.content.Intent
+          import android.graphics.Color
+          import android.graphics.Path
+          import android.graphics.PixelFormat
+          import android.graphics.drawable.GradientDrawable
+          import android.os.Handler
+          import android.os.Looper
+          import android.view.Gravity
+          import android.view.MotionEvent
+          import android.view.View
+          import android.view.WindowManager
+          import android.view.accessibility.AccessibilityEvent
+          import android.widget.LinearLayout
+          import android.widget.TextView
+
+          class DroneAccessibilityService : AccessibilityService() {
+
+              companion object {
+                  @Volatile
+                  var instance: DroneAccessibilityService? = null
+              }
+
+              private val handler = Handler(Looper.getMainLooper())
+              private var wm: WindowManager? = null
+              private var panel: LinearLayout? = null
+              private var marker: View? = null
+              private var markerParams: WindowManager.LayoutParams? = null
+              private var statusView: TextView? = null
+              private var startButton: TextView? = null
+              private var intervalView: TextView? = null
+
+              private var running = false
+              private var intervalMs = 300L
+              private var targetX = 0f
+              private var targetY = 0f
+
+              private val tapLoop = object : Runnable {
+                  override fun run() {
+                      if (!running) return
+                      tap(targetX, targetY, 40L)
+                      handler.postDelayed(this, intervalMs)
+                  }
+              }
+
+              override fun onServiceConnected() {
+                  instance = this
+                  wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                  showPanel()
+              }
+
+              override fun onUnbind(intent: Intent?): Boolean {
+                  hidePanel()
+                  instance = null
+                  return super.onUnbind(intent)
+              }
+
+              override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+
+              override fun onInterrupt() {}
+
+              fun tap(x: Float, y: Float, duration: Long = 80L) {
+                  val path = Path().apply { moveTo(x, y) }
+                  val gesture = GestureDescription.Builder()
+                      .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
+                      .build()
+                  dispatchGesture(gesture, null, null)
+              }
+
+              fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, duration: Long = 250L) {
+                  val path = Path().apply {
+                      moveTo(x1, y1)
+                      lineTo(x2, y2)
+                  }
+                  val gesture = GestureDescription.Builder()
+                      .addStroke(GestureDescription.StrokeDescription(path, 0, duration))
+                      .build()
+                  dispatchGesture(gesture, null, null)
+              }
+
+              // ---------- Suzuvchi panel ----------
+
+              private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+              private fun roundRect(color: Int, radiusDp: Int = 10): GradientDrawable {
+                  val d = GradientDrawable()
+                  d.setColor(color)
+                  d.cornerRadius = dp(radiusDp).toFloat()
+                  return d
+              }
+
+              private fun overlayParams(w: Int, h: Int, touchable: Boolean): WindowManager.LayoutParams {
+                  var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                      WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                  if (!touchable) {
+                      flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                  }
+                  val p = WindowManager.LayoutParams(
+                      w,
+                      h,
+                      WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                      flags,
+                      PixelFormat.TRANSLUCENT
+                  )
+                  p.gravity = Gravity.TOP or Gravity.START
+                  return p
+              }
+
+              private fun makeButton(text: String, onClick: () -> Unit): TextView {
+                  val t = TextView(this)
+                  t.text = text
+                  t.setTextColor(Color.WHITE)
+                  t.textSize = 16f
+                  t.gravity = Gravity.CENTER
+                  t.setPadding(dp(12), dp(10), dp(12), dp(10))
+                  t.background = roundRect(Color.argb(60, 255, 255, 255))
+                  t.setOnClickListener { onClick() }
+                  return t
+              }
+
+              private fun cellParams(): LinearLayout.LayoutParams {
+                  val l = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                  l.setMargins(dp(3), dp(3), dp(3), dp(3))
+                  return l
+              }
+
+              private fun attachDrag(handle: View, target: View, p: WindowManager.LayoutParams) {
+                  var startX = 0f
+                  var startY = 0f
+                  var origX = 0
+                  var origY = 0
+                  handle.setOnTouchListener { _, e ->
+                      when (e.action) {
+                          MotionEvent.ACTION_DOWN -> {
+                              startX = e.rawX
+                              startY = e.rawY
+                              origX = p.x
+                              origY = p.y
+                              true
+                          }
+                          MotionEvent.ACTION_MOVE -> {
+                              p.x = origX + (e.rawX - startX).toInt()
+                              p.y = origY + (e.rawY - startY).toInt()
+                              wm?.updateViewLayout(target, p)
+                              true
+                          }
+                          else -> true
+                      }
+                  }
+              }
+
+              private fun setStatus(msg: String) {
+                  statusView?.text = msg
+              }
+
+              private fun changeInterval(delta: Long) {
+                  intervalMs = (intervalMs + delta).coerceIn(50L, 3000L)
+                  intervalView?.text = "$intervalMs ms"
+              }
+
+              fun showPanel() {
+                  if (panel != null) return
+                  val w = wm ?: return
+
+                  val box = LinearLayout(this)
+                  box.orientation = LinearLayout.VERTICAL
+                  box.background = roundRect(Color.argb(210, 20, 20, 30), 14)
+                  box.setPadding(dp(8), dp(6), dp(8), dp(8))
+
+                  val p = overlayParams(
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      WindowManager.LayoutParams.WRAP_CONTENT,
+                      true
+                  )
+                  p.x = dp(12)
+                  p.y = dp(80)
+
+                  val header = LinearLayout(this)
+                  header.orientation = LinearLayout.HORIZONTAL
+                  val handle = TextView(this)
+                  handle.text = "☰ Dinora  (ushlab suring)"
+                  handle.setTextColor(Color.WHITE)
+                  handle.textSize = 14f
+                  handle.setPadding(dp(8), dp(10), dp(16), dp(10))
+                  attachDrag(handle, box, p)
+                  val close = makeButton("✕") { hidePanel() }
+                  header.addView(handle)
+                  header.addView(close)
+
+                  val status = TextView(this)
+                  status.setTextColor(Color.LTGRAY)
+                  status.textSize = 12f
+                  status.maxWidth = dp(240)
+                  status.setPadding(dp(8), dp(2), dp(8), dp(6))
+                  status.text = "Tayyor. Avval Nuqta tugmasini bosing."
+                  statusView = status
+
+                  val row1 = LinearLayout(this)
+                  row1.orientation = LinearLayout.HORIZONTAL
+                  val markBtn = makeButton("Nuqta") { toggleMarker() }
+                  val startBtn = makeButton("▶ Start") {
+                      if (running) stopRunning() else startRunning()
+                  }
+                  startButton = startBtn
+                  row1.addView(markBtn, cellParams())
+                  row1.addView(startBtn, cellParams())
+
+                  val row2 = LinearLayout(this)
+                  row2.orientation = LinearLayout.HORIZONTAL
+                  val minus = makeButton("−") { changeInterval(-50L) }
+                  val label = TextView(this)
+                  label.setTextColor(Color.WHITE)
+                  label.textSize = 15f
+                  label.gravity = Gravity.CENTER
+                  label.text = "$intervalMs ms"
+                  intervalView = label
+                  val plus = makeButton("+") { changeInterval(50L) }
+                  row2.addView(minus, cellParams())
+                  row2.addView(label, cellParams())
+                  row2.addView(plus, cellParams())
+
+                  box.addView(header)
+                  box.addView(status)
+                  box.addView(row1)
+                  box.addView(row2)
+
+                  w.addView(box, p)
+                  panel = box
+              }
+
+              fun hidePanel() {
+                  stopRunning()
+                  val w = wm
+                  val m = marker
+                  if (w != null && m != null) {
+                      w.removeView(m)
+                  }
+                  marker = null
+                  markerParams = null
+                  val pn = panel
+                  if (w != null && pn != null) {
+                      w.removeView(pn)
+                  }
+                  panel = null
+              }
+
+              private fun toggleMarker() {
+                  if (running) return
+                  val w = wm ?: return
+                  val existing = marker
+                  if (existing != null) {
+                      w.removeView(existing)
+                      marker = null
+                      markerParams = null
+                      setStatus("Belgi yashirildi.")
+                      return
+                  }
+                  val size = dp(64)
+                  val v = View(this)
+                  val ring = GradientDrawable()
+                  ring.shape = GradientDrawable.OVAL
+                  ring.setColor(Color.argb(40, 255, 0, 0))
+                  ring.setStroke(dp(3), Color.RED)
+                  v.background = ring
+                  val p = overlayParams(size, size, true)
+                  val dm = resources.displayMetrics
+                  p.x = dm.widthPixels / 2 - size / 2
+                  p.y = dm.heightPixels / 2 - size / 2
+                  attachDrag(v, v, p)
+                  w.addView(v, p)
+                  marker = v
+                  markerParams = p
+                  setStatus("Qizil belgini otish tugmasi ustiga olib boring, keyin Start bosing.")
+              }
+
+              private fun setMarkerTouchable(touchable: Boolean) {
+                  val m = marker ?: return
+                  val p = markerParams ?: return
+                  p.flags = if (touchable) {
+                      p.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+                  } else {
+                      p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                  }
+                  wm?.updateViewLayout(m, p)
+              }
+
+              private fun startRunning() {
+                  val m = marker
+                  if (m == null) {
+                      setStatus("Avval Nuqta tugmasini bosib, belgini otish tugmasi ustiga qo‘ying.")
+                      return
+                  }
+                  val loc = IntArray(2)
+                  m.getLocationOnScreen(loc)
+                  targetX = loc[0] + m.width / 2f
+                  targetY = loc[1] + m.height / 2f
+                  setMarkerTouchable(false)
+                  running = true
+                  startButton?.text = "■ Stop"
+                  setStatus("Ishlayapti: " + targetX.toInt() + ", " + targetY.toInt())
+                  handler.post(tapLoop)
+              }
+
+              private fun stopRunning() {
+                  running = false
+                  handler.removeCallbacks(tapLoop)
+                  startButton?.text = "▶ Start"
+                  setMarkerTouchable(true)
+                  setStatus("To‘xtadi.")
+              }
+          }
+          EOF
+
+      - name: Java 17 o'rnatish
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle o'rnatish
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: APK yig'ish
+        working-directory: proj
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: APK'ni yuklab olishga tayyorlash
+        uses: actions/upload-artifact@v4
+        with:
+          name: DinoraAIController-debug
+          path: proj/app/build/outputs/apk/debug/app-debug.apk
